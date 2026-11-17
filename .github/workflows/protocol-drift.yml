@@ -1,0 +1,48 @@
+name: Protocol drift
+
+# The bot speaks the protocol of hanab.live's server, which changes: when upstream changes server/protocol, this opens an issue
+# (one at a time) with what changed and whether the bot still builds with it, so that the bots do not go silent unnoticed.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/protocol-drift.yml
+      - scripts/protocol-drift.sh
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Compare the pinned protocol with upstream
+        id: drift
+        run: scripts/protocol-drift.sh | tee -a "$GITHUB_OUTPUT"
+      - name: Show the report
+        if: steps.drift.outputs.changed == 'true'
+        run: cat drift.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Open or update the issue
+        if: github.event_name != 'pull_request' && steps.drift.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          UPSTREAM: ${{ steps.drift.outputs.upstream }}
+        run: |
+          gh label create protocol-drift --description "Upstream changed server/protocol" --color D93F0B 2>/dev/null || true
+          number=$(gh issue list --label protocol-drift --state open --json number --jq '.[0].number // empty')
+          title="Upstream changed the protocol (hanabi-live ${UPSTREAM::7})"
+          if [[ -z $number ]]; then
+            gh issue create --title "$title" --label protocol-drift --body-file drift.md
+          elif ! gh issue view "$number" --json body --jq .body | grep -q "upstream: $UPSTREAM"; then
+            gh issue edit "$number" --title "$title" --body-file drift.md
+            gh issue comment "$number" --body "Upstream moved on to \`${UPSTREAM::7}\`; the report above is updated."
+          fi
