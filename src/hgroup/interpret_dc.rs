@@ -316,6 +316,16 @@ pub fn transfer_wcs(ctx: &DiscardContext, game: &Game, result: &DiscardResult) -
     g
 }
 
+/// Whether the player who discarded the card knew what it was: sarcastic and gentleman's discards need that, since they tell
+/// another player which card to expect. (A card that was only touched by a clue that fits several identities, such as a 1 that
+/// could be an orange 1, is not known: the discard is a mistake, not a signal.)
+fn discarder_knew(prev: &Game, player_index: usize, order: usize, id: Option<Identity>) -> bool {
+    player_index == prev.state.our_player_index
+        || id.is_some_and(|id| {
+            prev.players[player_index].thoughts[order].id_with(true, false) == Some(id)
+        })
+}
+
 pub fn interpret_useful_dc_h(ctx: &DiscardContext) -> Option<Game> {
     let DiscardContext { prev, game, action } = *ctx;
     let state = &game.state;
@@ -330,6 +340,7 @@ pub fn interpret_useful_dc_h(ctx: &DiscardContext) -> Option<Game> {
         && id.is_some_and(|id| !state.is_basic_trash(id))
         && !prev.meta[order].trash
         && prev.is_touched(order)
+        && discarder_knew(prev, player_index, order, id)
         && {
             let id = id.expect("checked");
             let dupe = (0..state.num_players).find(|&i| {
