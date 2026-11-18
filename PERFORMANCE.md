@@ -107,9 +107,10 @@ debug builds (so in the tests) a skipped search is also run on a copy and assert
 | `HGroup5` 5p, 8 games | 115 s | 83 s |
 | `HGroup1` 5p, 3 games | 34.2 s | 24.4 s |
 | `Reactor1` 4p, 4 games | 6.8 s | 5.7 s |
+| `HGroup5` 4p, 5 games | 83.4 s | 79.5 s |
 | 2 and 3 players (`HGroup3`, `HGroup5`, `HGroup8`, `HGroup11`, `HGroup13`, `Reactor1`, `RefSieve`) | | within noise |
 
-The fingerprint of every configuration is the same as before (the 18 configurations above and the 5-player ones), so the bot plays the same games. About 3 in 4 searches
+The fingerprint is the same as before in every run listed (ten configurations from 2 to 5 players, with HGroup levels 1 to 13, Reactor and RefSieve, plus the two 5-player runs of 8 games and the seed 318 game), so the bot plays the same games there. About 3 in 4 searches
 are skipped in the slow decision (the counters `cross_elim searches run` / `skipped`).
 
 What is left of that decision (5 s) is the searches that run: they are as expensive as before. Ideas: cutting the enumeration of tight subsets short when they cannot change
