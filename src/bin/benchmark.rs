@@ -1,7 +1,7 @@
 //! Times self-play on a fixed set of seeded games.
 //!
 //! Usage: `benchmark [convention=HGroup3] [players=3] [variant="No Variant"] [seed=314] [games=3] [repetitions=3]
-//!         [solver=off] [solver_timeout=3000] [move_timeout=0] [lookahead=1] [variants=<json> colours=<json>]`
+//!         [solver=off] [solver_timeout=3000] [move_timeout=0] [lookahead=1] [lookahead4=<unlimited>] [variants=<json> colours=<json>]`
 //!
 //! Every repetition plays the same games, so the times are comparable between runs and between versions of the code.
 //! Two things make the numbers trustworthy:
@@ -65,6 +65,12 @@ fn main() -> Result<(), String> {
         .parse()
         .map_err(|_| "lookahead must be a number")?;
     hanab_bot::budget::set_max_lookahead_5p(lookahead);
+    // The same at 4 players (the default is no limit).
+    if let Some(plies) = args.get("lookahead4") {
+        hanab_bot::budget::set_max_lookahead_4p(
+            plies.parse().map_err(|_| "lookahead4 must be a number")?,
+        );
+    }
     let move_timeout: u64 = get("move_timeout", "0")
         .parse()
         .map_err(|_| "move_timeout must be a number")?;

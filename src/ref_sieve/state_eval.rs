@@ -215,7 +215,7 @@ pub fn advance(orig: &Game, game: &Game, offset: usize) -> f64 {
     if player_index == state.our_player_index
         || state.endgame_turns == Some(0)
         || crate::budget::expired()
-        || (state.num_players > 4 && offset > crate::budget::max_lookahead_5p())
+        || crate::budget::lookahead_stops(state.num_players, offset)
     {
         return eval_game(orig, game);
     }

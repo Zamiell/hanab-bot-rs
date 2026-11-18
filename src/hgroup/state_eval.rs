@@ -321,7 +321,7 @@ impl<'a> Advance<'a> {
         // the full lookahead effectively endless, so it is cut short.
         state.endgame_turns == Some(0)
             || crate::budget::expired()
-            || (state.num_players > 4 && offset > crate::budget::max_lookahead_5p())
+            || crate::budget::lookahead_stops(state.num_players, offset)
             || (player_index == our
                 && (offset > 3 || (state.num_players > 2 && orig.state.clue_tokens > 2)))
             || (orig.hg().in_early_game
