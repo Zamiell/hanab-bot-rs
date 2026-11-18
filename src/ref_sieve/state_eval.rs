@@ -197,9 +197,6 @@ fn force_clue_value(orig: &Game, game: &Game, offset: usize, only: Option<usize>
     }
 }
 
-/// How many plies the lookahead goes in games with more than 4 players.
-const MAX_LOOKAHEAD_5P: usize = 1;
-
 /// Predicts the value of the game after the player `offset` turns from us acts.
 pub fn advance(orig: &Game, game: &Game, offset: usize) -> f64 {
     let (state, common, meta) = (&game.state, &game.common, &game.meta);
@@ -218,7 +215,7 @@ pub fn advance(orig: &Game, game: &Game, offset: usize) -> f64 {
     if player_index == state.our_player_index
         || state.endgame_turns == Some(0)
         || crate::budget::expired()
-        || (state.num_players > 4 && offset > MAX_LOOKAHEAD_5P)
+        || (state.num_players > 4 && offset > crate::budget::max_lookahead_5p())
     {
         return eval_game(orig, game);
     }

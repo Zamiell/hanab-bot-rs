@@ -6,7 +6,7 @@
 //! depend on the machine's speed.
 
 use std::cell::Cell;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use crate::clock::Instant;
@@ -14,6 +14,19 @@ use crate::{log_warn, stats};
 
 /// The budget of every move, in milliseconds (0: none).
 static DEFAULT_MS: AtomicU64 = AtomicU64::new(0);
+
+/// How many plies the lookahead goes in games with more than 4 players (the full one never finishes there).
+static MAX_LOOKAHEAD_5P: AtomicUsize = AtomicUsize::new(1);
+
+/// Changes how many plies the lookahead of a move goes in games with 5 or more players (process-wide; the default is 1).
+pub fn set_max_lookahead_5p(plies: usize) {
+    MAX_LOOKAHEAD_5P.store(plies, Ordering::Relaxed);
+}
+
+/// How many plies the lookahead goes in games with 5 or more players.
+pub fn max_lookahead_5p() -> usize {
+    MAX_LOOKAHEAD_5P.load(Ordering::Relaxed)
+}
 
 thread_local! {
     static DEADLINE: Cell<Option<Instant>> = const { Cell::new(None) };
