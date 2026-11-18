@@ -115,3 +115,23 @@ are skipped in the slow decision (the counters `cross_elim searches run` / `skip
 
 What is left of that decision (5 s) is the searches that run: they are as expensive as before. Ideas: cutting the enumeration of tight subsets short when they cannot change
 anything outside them (it has to stay exactly the same search), or remembering what a search found as well as what it did not.
+
+## A time budget for a move (#115)
+
+`budget::set_default_move_timeout` (the bot: `HANABI_MOVE_TIMEOUT_MS`, default 5000; `benchmark move_timeout=<ms>`, default none) gives choosing a move a deadline. `Game::take_action`
+sets it, and the cut-off of each convention's lookahead (`stop_lookahead` in H-Group, the same test in the Reactor and RefSieve `advance`) also stops once it has passed:
+every action is still evaluated, only less deep, so the move is bounded and legal. With no budget nothing changes; a move that finishes in time is the same as without one.
+
+Self-play at 5 players, 8 games from seed 314 (one process at a time: a wall-clock budget depends on how busy the machine is, so runs side by side on this 2-CPU container gave
+different moves even at 3 players, and are not comparable):
+
+| budget | `HGroup1`: time, total score | `HGroup5`: time, total score |
+|---|---|---|
+| none | 57.7 s, 187 | 81.2 s, 164 |
+| 1000 ms | 53.7 s, 187 | 79.5 s, 164 (the same moves) |
+| 250 ms | 48.6 s, 187 | 68.0 s, 170 |
+| 50 ms | 45.3 s, 181 | 40.5 s, 151 |
+
+A budget of a second or more costs nothing measurable here (the score is the same, and `HGroup5` plays the same moves); 250 ms is neutral; 50 ms starts to cost (-3%, -8%).
+At 3 players (`HGroup3`, 6 games) a budget of 1000 ms changes some moves (a few take longer than a second) and the score by one (139 to 138).
+The default is 5 s because it bounds a move on a slow machine and a debug build without changing the moves a desktop plays; an app that embeds the library has none unless it sets one.

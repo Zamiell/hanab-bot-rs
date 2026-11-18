@@ -417,6 +417,18 @@ fn main() -> Result<(), String> {
         hanab_bot::endgame::solver::set_default_timeout(Duration::from_millis(ms));
     }
 
+    // How long choosing a move may take before its lookahead is cut short (the default is 5000 ms; 0 is no limit). A move that
+    // finishes sooner is the same as without a limit; without one, a late move at 5 players can take minutes.
+    let move_timeout_ms: u64 = match env.get("HANABI_MOVE_TIMEOUT_MS") {
+        Some(ms) => ms
+            .parse()
+            .map_err(|_| "HANABI_MOVE_TIMEOUT_MS must be a number")?,
+        None => 5000,
+    };
+    hanab_bot::budget::set_default_move_timeout(
+        (move_timeout_ms > 0).then(|| Duration::from_millis(move_timeout_ms)),
+    );
+
     // How many threads one endgame search may use (the default is 1). The answer is the same for any number of
     // threads when the search finishes in time; more threads only make that likelier.
     if let Some(n) = env.get("HANABI_ENDGAME_THREADS") {

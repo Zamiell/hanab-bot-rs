@@ -24,9 +24,11 @@ pub enum Counter {
     CrossElimRun,
     /// The same, skipped because the last search of that player found nothing and nothing it reads changed.
     CrossElimSkipped,
+    /// Moves that went over their time budget (see `budget`).
+    OverBudget,
 }
 
-const COUNTERS: [(Counter, &str); 8] = [
+const COUNTERS: [(Counter, &str); 9] = [
     (Counter::TakeAction, "decisions (take_action)"),
     (Counter::Elim, "Game::elim"),
     (Counter::UpdateHypoStacks, "update_hypo_stacks"),
@@ -35,6 +37,7 @@ const COUNTERS: [(Counter, &str); 8] = [
     (Counter::SolverNodes, "endgame solver positions"),
     (Counter::CrossElimRun, "cross_elim searches run"),
     (Counter::CrossElimSkipped, "cross_elim searches skipped"),
+    (Counter::OverBudget, "moves over their time budget"),
 ];
 
 /// Whether the counters are compiled in.

@@ -1,7 +1,7 @@
 //! Times self-play on a fixed set of seeded games.
 //!
 //! Usage: `benchmark [convention=HGroup3] [players=3] [variant="No Variant"] [seed=314] [games=3] [repetitions=3]
-//!         [solver=off] [variants=<json> colours=<json>]`
+//!         [solver=off] [move_timeout=0] [variants=<json> colours=<json>]`
 //!
 //! Every repetition plays the same games, so the times are comparable between runs and between versions of the code.
 //! Two things make the numbers trustworthy:
@@ -53,6 +53,13 @@ fn main() -> Result<(), String> {
 
     logger::set_default_level(LogLevel::Off);
     solver::set_enabled(solver_on);
+    // A time budget for each move, in milliseconds (0, the default, is none: the moves then do not depend on the machine).
+    let move_timeout: u64 = get("move_timeout", "0")
+        .parse()
+        .map_err(|_| "move_timeout must be a number")?;
+    hanab_bot::budget::set_default_move_timeout(
+        (move_timeout > 0).then(|| Duration::from_millis(move_timeout)),
+    );
     std::panic::set_hook(Box::new(|_| {}));
 
     let variant = load_variant(&get("variant", "No Variant"), &args)?;

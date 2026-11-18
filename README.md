@@ -83,6 +83,10 @@ let config = BotConfig { export_fetcher: Some(std::sync::Arc::new(MyFetcher)), .
 
 Without one, `/analyze` answers that this build has no way to fetch games. (`GameData::fetch_with(&fetcher, hostname, id)` does the same outside the bot.)
 
+Choosing a move can take seconds late in a game at 5 or more players. `hanab_bot::budget::set_default_move_timeout(Some(duration))` (process-wide; the
+library has none by default) makes the lookahead of a move stop where it is once its budget is spent (every action is still evaluated, only less deep), so a move
+is bounded; a move that finishes in time is the same as without one. (The moves then depend on how fast the machine is when a budget is spent.)
+
 Analysing a finished game (`Game::analyze_comments_with`, after rebuilding it with `tools::game_data::build_game`) replays it once per player,
 on one thread per player by default (`threads: 1` keeps it on the calling thread), and can report progress and be cancelled:
 
@@ -183,6 +187,7 @@ convention and version, the table, variant, players, turn and the game's seed. `
 | `HANABI_FEEDBACK_FILE` | file to append to (default `feedback.jsonl`; `off` or empty turns `/feedback` off) |
 | `HANABI_ENDGAME_THREADS` | how many threads one endgame search may use (default `1`). The move chosen is the same for any number, as long as the search finishes in time; more threads make that likelier. Several bots in one process share the cores, so keep it low there |
 | `HANABI_ENDGAME_TIMEOUT_MS` | how long the endgame solver may search per move (default `3000`; self-play often hits the limit, so raise it if you have time to spare) |
+| `HANABI_MOVE_TIMEOUT_MS` | how long choosing a move may take before its lookahead is cut short (default `5000`; `0` is no limit). A move that finishes sooner is the same as without a limit; only a few late moves at 5 players take longer |
 | `HANABI_FEEDBACK_INTRO` | `0` stops the announcement at the start of each game (default `1`) |
 | `HANABI_LEAVE_REPLAY_IF_ONLY_BOTS` | `0` keeps a bot in a replay (of a game it played, or one it was invited to) when only bots are left watching it (default `1`: it leaves). A bot also leaves a pregame once only bots are left at the table; `/stay` (by PM) keeps it there |
 | `HANABI_BOT_NAME_PREFIXES` | comma-separated name prefixes (for example `my-bot-`) of accounts that count as bots in the two rules above. The accounts that hanab.live marks as bots (those that logged in with `client=bot`, which is what this bot does) count as well, so this is only for a bot that the server does not mark. Someone who has not shown up in the lobby yet counts as a person |
