@@ -110,6 +110,9 @@ pub struct Player {
     pub certain_map: Vec<CertainMapEntry>,
     /// Indexed by identity ordinal: the orders that could be that identity.
     pub possible_map: Vec<FastBitSet>,
+    /// What the last search for sets of cards that pin down identities (`card_elim`) read, if it found nothing: the search reads the
+    /// same again only when nothing in it changed, so it would find nothing again.
+    pub cross_elim_clean: Option<Arc<[u64]>>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -163,6 +166,7 @@ impl Player {
             dirty: FastBitSet::EMPTY,
             certain_map: vec![CertainMapEntry::EMPTY; all_possible.len()],
             possible_map: Vec::new(),
+            cross_elim_clean: None,
         }
     }
 

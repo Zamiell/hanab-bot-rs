@@ -20,15 +20,21 @@ pub enum Counter {
     Simulate,
     /// Positions the endgame solver searched (`winnable` calls).
     SolverNodes,
+    /// Searches for sets of cards that pin down identities (`cross_elim`) that ran.
+    CrossElimRun,
+    /// The same, skipped because the last search of that player found nothing and nothing it reads changed.
+    CrossElimSkipped,
 }
 
-const COUNTERS: [(Counter, &str); 6] = [
+const COUNTERS: [(Counter, &str); 8] = [
     (Counter::TakeAction, "decisions (take_action)"),
     (Counter::Elim, "Game::elim"),
     (Counter::UpdateHypoStacks, "update_hypo_stacks"),
     (Counter::HypoPlay, "hypothetical plays"),
     (Counter::Simulate, "simulated games"),
     (Counter::SolverNodes, "endgame solver positions"),
+    (Counter::CrossElimRun, "cross_elim searches run"),
+    (Counter::CrossElimSkipped, "cross_elim searches skipped"),
 ];
 
 /// Whether the counters are compiled in.

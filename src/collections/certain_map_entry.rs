@@ -29,6 +29,11 @@ pub struct CertainMapEntry(u64);
 impl CertainMapEntry {
     pub const EMPTY: Self = Self(0);
 
+    /// The entry as one number (the same entries have the same number).
+    pub const fn bits(self) -> u64 {
+        self.0
+    }
+
     pub const fn len(self) -> usize {
         (self.0 & SIZE_MASK) as usize
     }

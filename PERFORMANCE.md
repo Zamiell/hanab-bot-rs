@@ -84,3 +84,34 @@ every player, each time replaying the hypothetical plays. Ideas, roughly by expe
 2. Fewer game copies in hypothetical plays when connections are waiting (the `prev` copy and `refresh_wcs`).
 3. ~~Caching `order_trash` / `thinks_trash`~~: measured, about 2% of the run; not worth the invalidation risk.
 4. ~~Searching the endgame in parallel~~: done, opt-in (`HANABI_ENDGAME_THREADS`, `EndgameSolver::with_threads`). The first moves are tried on separate threads and the best is picked in order, so the answer is the same for any thread count when the search finishes. On `it_completes_an_early_endgame` (3.3 s on one thread) 4 threads take 1.3 s; searches dominated by one move gain nothing.
+
+## Late-game moves at 5 players (#113, #115)
+
+At 5 players a few decisions in the last turns of a game (turns 47 to 51, when the deck is almost gone) take seconds to minutes, and they are most of the time of
+a game: 8 games of `HGroup1` took 119 s, 54 s of it in three decisions (one of 44 s). `SELF_PLAY_SLOW_MS=3000 benchmark convention=HGroup1 players=5 games=8`
+reports them (with `--features stats` it also prints the work counters of that one decision); game `i` is seed `314 + i`, so `seed=318 games=1` plays the 48 s one.
+
+That decision made only 254 simulated games and 14,000 hypothetical plays, no more than others, but 99.5% of its time was the *own* time of `Player::card_elim`,
+nothing it calls: 7,074 calls of 6.5 ms. Its search for sets of cards that pin identities down (`cross_elim`, the "sudoku" operation) enumerates subsets of the
+candidate cards, and late in a 5-player game there are many cards with few possibilities: 252 million recursive steps in that one decision, 60 million of them
+tight subsets that call `perform_cross_elim` (1.5 billion `update_map` calls), nearly all of which find nothing to eliminate. The search is a pure function of what it
+reads (the hands, what each card could be, the identities visible, and the certain map), and when it finds nothing it changes nothing, so `card_elim` now remembers
+the key of a search that found nothing, per player and in a small set shared by all players of the thread (8192 keys), and skips a search whose key it knows. In
+debug builds (so in the tests) a skipped search is also run on a copy and asserted to find nothing.
+
+| | before | after |
+|---|---|---|
+| the 48 s decision (`HGroup1` 5p, seed 318) | 46 s | 5.3 s |
+| that game | 58 s | 11 s |
+| `HGroup1` 5p, 8 games | 119 s | 58 s |
+| `HGroup5` 5p, 8 games | 115 s | 83 s |
+| `HGroup1` 5p, 3 games | 34.2 s | 24.4 s |
+| `Reactor1` 4p, 4 games | 6.8 s | 5.7 s |
+| `HGroup5` 4p, 5 games | 83.4 s | 79.5 s |
+| 2 and 3 players (`HGroup3`, `HGroup5`, `HGroup8`, `HGroup11`, `HGroup13`, `Reactor1`, `RefSieve`) | | within noise |
+
+The fingerprint is the same as before in every run listed (ten configurations from 2 to 5 players, with HGroup levels 1 to 13, Reactor and RefSieve, plus the two 5-player runs of 8 games and the seed 318 game), so the bot plays the same games there. About 3 in 4 searches
+are skipped in the slow decision (the counters `cross_elim searches run` / `skipped`).
+
+What is left of that decision (5 s) is the searches that run: they are as expensive as before. Ideas: cutting the enumeration of tight subsets short when they cannot change
+anything outside them (it has to stay exactly the same search), or remembering what a search found as well as what it did not.
