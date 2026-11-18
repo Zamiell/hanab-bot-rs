@@ -27,7 +27,7 @@ use crate::settings::{
     unsupported_table_options,
 };
 use crate::tools::console::{ConsoleCmd, run_command};
-use crate::tools::game_data::{GameData, build_game};
+use crate::tools::game_data::{ExportFetcher, GameData, NO_FETCHER, build_game};
 use crate::wire::{self, AuthorNotes, GameInit, Incoming, Stage, UserInfo};
 use crate::{log_error, log_highlight, log_info};
 
@@ -83,6 +83,21 @@ pub struct BotConfig {
     pub feedback_file: Option<PathBuf>,
     /// Whether to tell the table, when a game starts, how to send feedback.
     pub feedback_intro: bool,
+    /// How `/analyze` fetches an exported game. The `net` feature fetches over HTTPS by default; without it `/analyze` needs one
+    /// of these from the app that owns the network.
+    pub export_fetcher: Option<Arc<dyn ExportFetcher>>,
+}
+
+/// The fetcher that a build has without being given one.
+fn default_export_fetcher() -> Option<Arc<dyn ExportFetcher>> {
+    #[cfg(feature = "net")]
+    {
+        Some(Arc::new(crate::tools::game_data::HttpFetcher))
+    }
+    #[cfg(not(feature = "net"))]
+    {
+        None
+    }
 }
 
 impl Default for BotConfig {
@@ -93,6 +108,7 @@ impl Default for BotConfig {
             hostname: "hanab.live".to_string(),
             feedback_file: Some(PathBuf::from("feedback.jsonl")),
             feedback_intro: true,
+            export_fetcher: default_export_fetcher(),
         }
     }
 }
@@ -125,6 +141,7 @@ impl BotConfig {
                 Some(path) => Some(PathBuf::from(path)),
             },
             feedback_intro: env.get("HANABI_FEEDBACK_INTRO").map_or("1", String::as_str) == "1",
+            export_fetcher: default_export_fetcher(),
         }
     }
 
@@ -1336,6 +1353,7 @@ impl BotClient {
         let out = self.out.clone();
         let request_ids = self.request_ids.clone();
         let hostname = self.config.hostname.clone();
+        let fetcher = self.config.export_fetcher.clone();
         let who = who.to_string();
         std::thread::spawn(move || {
             let pm = |msg: &str| {
@@ -1347,7 +1365,8 @@ impl BotClient {
             };
 
             let result = catch_unwind(AssertUnwindSafe(|| -> Result<Vec<String>, String> {
-                let data = GameData::fetch_id(&hostname, &id)?;
+                let fetcher = fetcher.ok_or(NO_FETCHER)?;
+                let data = GameData::fetch_with(fetcher.as_ref(), &hostname, &id)?;
                 let variant = data.options.variant()?;
                 let _quiet = crate::logger::LevelGuard::set(crate::logger::LogLevel::Off);
                 Ok(build_game(convention, &data, variant, 0, false)?.analyze())

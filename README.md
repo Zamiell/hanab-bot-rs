@@ -63,6 +63,26 @@ for out in rx.try_iter() {
 }
 ```
 
+The bot's `/analyze <replayId> <convention>` command fetches the game from the server. With the `net` feature it does that over HTTPS; without it
+(as above) it needs a fetcher from the app that owns the network, which the library has no HTTP client for:
+
+```rust
+use hanab_bot::tools::game_data::ExportFetcher;
+
+#[derive(Debug)]
+struct MyFetcher; // whatever your app uses to fetch a URL; it may block (the command runs on its own thread)
+
+impl ExportFetcher for MyFetcher {
+    fn fetch(&self, hostname: &str, id: &str) -> Result<String, String> {
+        /* the text of https://{hostname}/export/{id} */
+    }
+}
+
+let config = BotConfig { export_fetcher: Some(std::sync::Arc::new(MyFetcher)), ..BotConfig::default() };
+```
+
+Without one, `/analyze` answers that this build has no way to fetch games. (`GameData::fetch_with(&fetcher, hostname, id)` does the same outside the bot.)
+
 Analysing a finished game (`Game::analyze_comments_with`, after rebuilding it with `tools::game_data::build_game`) replays it once per player,
 on one thread per player by default (`threads: 1` keeps it on the calling thread), and can report progress and be cancelled:
 

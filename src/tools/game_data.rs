@@ -12,6 +12,9 @@ use crate::settings::ConventionKind;
 use crate::basics::HAND_SIZE;
 use crate::basics::action::{Action, DrawAction, GameOverAction, TurnAction};
 
+/// Why nothing can be fetched when the build has no fetcher.
+pub const NO_FETCHER: &str = "this build has no way to fetch games (no `net` feature, and no export fetcher was given), so games can't be downloaded";
+
 #[derive(Clone, Debug)]
 pub struct GameData {
     pub players: Vec<String>,
@@ -26,25 +29,51 @@ pub struct GameData {
     pub notes: Vec<Vec<String>>,
 }
 
-impl GameData {
-    /// Downloads an exported game from the server (blocking).
-    #[cfg(feature = "net")]
-    pub fn fetch_id(hostname: &str, id: &str) -> Result<Self, String> {
+/// Fetches the JSON of an exported game from a server: for an app that owns the network (the library has no HTTP client without the
+/// `net` feature) to give to the bot's `/analyze` command, in [`BotConfig::export_fetcher`](crate::client::BotConfig). It may block.
+pub trait ExportFetcher: Send + Sync + std::fmt::Debug {
+    /// The text of the export `id` of the server `hostname` (`https://<hostname>/export/<id>` on hanab.live).
+    fn fetch(&self, hostname: &str, id: &str) -> Result<String, String>;
+}
+
+/// Downloads exports over HTTPS (blocking).
+#[cfg(feature = "net")]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct HttpFetcher;
+
+#[cfg(feature = "net")]
+impl ExportFetcher for HttpFetcher {
+    fn fetch(&self, hostname: &str, id: &str) -> Result<String, String> {
         let url = format!("https://{hostname}/export/{id}");
-        let text = reqwest::blocking::get(&url)
+        reqwest::blocking::get(&url)
             .and_then(reqwest::blocking::Response::error_for_status)
             .and_then(reqwest::blocking::Response::text)
-            .map_err(|e| format!("{url}: {e}"))?;
+            .map_err(|e| format!("{url}: {e}"))
+    }
+}
+
+impl GameData {
+    /// Fetches an exported game with the given fetcher.
+    pub fn fetch_with(
+        fetcher: &dyn ExportFetcher,
+        hostname: &str,
+        id: &str,
+    ) -> Result<Self, String> {
+        let text = fetcher.fetch(hostname, id)?;
         Self::parse(&serde_json::from_str(&text).map_err(|e| e.to_string())?)
     }
 
-    /// Without the `net` feature nothing can be downloaded; load the export from a file instead.
+    /// Downloads an exported game from the server (blocking).
+    #[cfg(feature = "net")]
+    pub fn fetch_id(hostname: &str, id: &str) -> Result<Self, String> {
+        Self::fetch_with(&HttpFetcher, hostname, id)
+    }
+
+    /// Without the `net` feature nothing can be downloaded; load the export from a file instead, or fetch it with your own
+    /// [`ExportFetcher`] ([`fetch_with`](Self::fetch_with)).
     #[cfg(not(feature = "net"))]
     pub fn fetch_id(_hostname: &str, _id: &str) -> Result<Self, String> {
-        Err(
-            "this build has no network support (the `net` feature), so games can't be downloaded"
-                .to_string(),
-        )
+        Err(NO_FETCHER.to_string())
     }
 
     pub fn from_file(path: &str) -> Result<Self, String> {
