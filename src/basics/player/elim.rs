@@ -11,6 +11,28 @@ use crate::{log_highlight, log_info, log_warn};
 
 const CYAN: &str = "\x1b[36m";
 
+/// How many keys of searches that found nothing are kept for every player of the thread (see [`known_clean`]).
+const CLEAN_KEYS: usize = 8192;
+
+thread_local! {
+    static CLEAN: std::cell::RefCell<std::collections::HashSet<Box<[u64]>>> = std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// Whether a search with this key found nothing before, for any player: the search only reads what the key holds.
+fn known_clean(key: &[u64]) -> bool {
+    CLEAN.with(|clean| clean.borrow().contains(key))
+}
+
+fn remember_clean(key: &[u64]) {
+    CLEAN.with(|clean| {
+        let mut clean = clean.borrow_mut();
+        if clean.len() >= CLEAN_KEYS {
+            clean.clear();
+        }
+        clean.insert(key.into());
+    });
+}
+
 /// What a round of elimination changed.
 #[derive(Default)]
 struct ElimResult {
@@ -364,7 +386,7 @@ impl Player {
             })
             .collect();
 
-        let mut candidates = cross_elim_candidates.filter(|order| {
+        let candidates = cross_elim_candidates.filter(|order| {
             let possible = self.thoughts[order].possible;
             let certains: usize = possible
                 .iter()
@@ -375,6 +397,58 @@ impl Player {
                 <= 9.min(cross_elim_candidates.len()) as isize
         });
 
+        if candidates.len() > 1 {
+            let key = self.cross_elim_key(state);
+            if self.cross_elim_clean.as_deref() == Some(key.as_slice()) || known_clean(&key) {
+                crate::stats::count(crate::stats::Counter::CrossElimSkipped);
+                // (Debug builds, so the tests, check that the search would have found nothing.)
+                #[cfg(debug_assertions)]
+                {
+                    let (changed, _) = self.clone().run_cross_elim(state, candidates);
+                    assert!(
+                        !changed,
+                        "a skipped cross_elim search would have changed something"
+                    );
+                }
+            } else {
+                crate::stats::count(crate::stats::Counter::CrossElimRun);
+                let (first_changed, found) = self.run_cross_elim(state, candidates);
+                resets = resets.union(found);
+                if !first_changed {
+                    remember_clean(&key);
+                    self.cross_elim_clean = Some(key.into());
+                }
+            }
+        }
+
+        resets
+    }
+
+    /// Everything that the search for sets of cards reads, as numbers: the hands, what each card could be and (for a card whose
+    /// identity is visible) what it is, and the identities that are certain.
+    fn cross_elim_key(&self, state: &State) -> Vec<u64> {
+        let mut key = Vec::with_capacity(96);
+        for hand in &state.hands {
+            key.push(hand.len() as u64);
+            for &order in hand {
+                key.push(order as u64);
+                key.push(self.thoughts[order].possible.bits());
+                key.push(
+                    state.deck[order]
+                        .identity
+                        .map_or(0, |id| id.to_ord() as u64 + 1),
+                );
+            }
+        }
+        key.extend(self.certain_map.iter().map(|entry| entry.bits()));
+        key
+    }
+
+    /// Runs the search for sets of cards until it finds nothing more. Returns whether the first search found something, and the
+    /// orders whose inferences were reset.
+    fn run_cross_elim(&mut self, state: &State, mut candidates: FastBitSet) -> (bool, FastBitSet) {
+        let mut resets = FastBitSet::EMPTY;
+        let mut first_changed = None;
         let mut changed = true;
         while candidates.len() > 1 && changed {
             let res = self.cross_elim(
@@ -386,11 +460,11 @@ impl Player {
             );
 
             changed = res.changed;
+            first_changed.get_or_insert(changed);
             candidates = candidates.difference(res.removals);
             resets = resets.union(res.resets);
         }
-
-        resets
+        (first_changed.unwrap_or(false), resets)
     }
 
     /// Removes trash identities from the inferences of touched cards.

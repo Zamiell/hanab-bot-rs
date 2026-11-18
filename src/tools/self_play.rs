@@ -125,6 +125,7 @@ pub fn simulate_game(
 
         let step = catch_unwind(AssertUnwindSafe(|| -> Result<PerformAction, String> {
             let started = std::time::Instant::now();
+            let counters_before = crate::stats::snapshot();
             let perform = games[current].take_action();
             if let Some(limit) = slow_ms
                 && started.elapsed().as_millis() as u64 >= limit
@@ -136,6 +137,12 @@ pub fn simulate_game(
                     perform,
                     started.elapsed().as_millis()
                 );
+                // (Only with the `stats` feature: the work that this decision did.)
+                for ((name, after), (_, before)) in
+                    crate::stats::snapshot().into_iter().zip(counters_before)
+                {
+                    eprintln!("    {name:45} {}", after - before);
+                }
             }
 
             for game in &mut games {
