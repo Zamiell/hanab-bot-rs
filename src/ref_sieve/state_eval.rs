@@ -217,6 +217,7 @@ pub fn advance(orig: &Game, game: &Game, offset: usize) -> f64 {
     // the full lookahead effectively endless, so it is cut short.
     if player_index == state.our_player_index
         || state.endgame_turns == Some(0)
+        || crate::budget::expired()
         || (state.num_players > 4 && offset > MAX_LOOKAHEAD_5P)
     {
         return eval_game(orig, game);

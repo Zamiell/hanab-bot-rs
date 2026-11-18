@@ -192,7 +192,10 @@ pub fn advance(orig: &Game, game: &Game, offset: usize) -> f64 {
     let urgent_dc = trash.iter().copied().find(|&o| meta[o].urgent);
     let all_playables = player.obvious_playables(game, player_index);
 
-    if player_index == state.our_player_index || state.endgame_turns == Some(0) {
+    if player_index == state.our_player_index
+        || state.endgame_turns == Some(0)
+        || crate::budget::expired()
+    {
         return eval_game(orig, game, offset);
     }
 

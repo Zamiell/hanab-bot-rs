@@ -380,7 +380,7 @@ impl Game {
 
     pub fn take_action(&self) -> PerformAction {
         crate::stats::count(crate::stats::Counter::TakeAction);
-        self.conv.take_action(self)
+        crate::budget::scope(|| self.conv.take_action(self))
     }
 
     /// Writes the identity on the given order in [`State::deck`] and [`Game::deck_ids`].

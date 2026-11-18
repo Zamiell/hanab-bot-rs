@@ -323,6 +323,7 @@ impl<'a> Advance<'a> {
         // Not in the Scala bot: with 5+ players the branching (every clue of every other player) makes
         // the full lookahead effectively endless, so it is cut short.
         state.endgame_turns == Some(0)
+            || crate::budget::expired()
             || (state.num_players > 4 && offset > MAX_LOOKAHEAD_5P)
             || (player_index == our
                 && (offset > 3 || (state.num_players > 2 && orig.state.clue_tokens > 2)))
