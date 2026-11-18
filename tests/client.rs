@@ -9,6 +9,7 @@ use hanab_bot::basics::state::TableOptions;
 use hanab_bot::client::{BotClient, BotConfig, Out};
 use hanab_bot::logger::{self, LogLevel};
 use hanab_bot::settings::ConventionKind;
+use hanab_bot::tools::game_data::ExportFetcher;
 use serde_json::{Value, json};
 use std::sync::mpsc::{Receiver, channel as unbounded_channel};
 
@@ -385,6 +386,88 @@ fn it_applies_the_events_of_one_message_in_order() {
         "{together:?}"
     );
     assert_eq!(together, play(false));
+}
+
+/// An export served by the app that owns the network, in place of the library's own HTTP client.
+#[derive(Debug)]
+struct FakeExports;
+
+impl ExportFetcher for FakeExports {
+    fn fetch(&self, hostname: &str, id: &str) -> Result<String, String> {
+        assert_eq!(hostname, "hanab.live");
+        match id {
+            "7" => Ok(include_str!("fixtures/cascade_2065891.json").to_string()),
+            _ => Err(format!("no export {id}")),
+        }
+    }
+}
+
+/// What the bot says next, as the texts of the commands it sends, until one has `needle` (or a minute has passed).
+fn sent_until(rx: &mut Receiver<Out>, needle: &str) -> Vec<String> {
+    let mut sent = Vec::new();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    while std::time::Instant::now() < deadline {
+        let Ok(out) = rx.recv_timeout(std::time::Duration::from_millis(200)) else {
+            continue;
+        };
+        if let Out::Send(_, text) = out {
+            let done = text.contains(needle);
+            sent.push(text);
+            if done {
+                break;
+            }
+        }
+    }
+    sent
+}
+
+#[test]
+fn it_analyzes_a_game_that_the_app_fetches() {
+    logger::set_level(LogLevel::Off);
+    init_variants();
+    let (tx, mut rx) = unbounded_channel();
+    let config = BotConfig {
+        export_fetcher: Some(std::sync::Arc::new(FakeExports)),
+        ..BotConfig::default()
+    };
+    let mut client = BotClient::new(config, tx);
+    client.handle_msg(&welcome("bot"));
+
+    client.handle_msg(&pm("friend", "/analyze 7 HGroup5"));
+    let sent = sent_until(&mut rx, "Analysis completed");
+    assert!(
+        sent.iter().any(|s| s.contains("Analysis completed")),
+        "{sent:?}"
+    );
+    assert!(
+        !sent.iter().any(|s| s.contains("Failed to analyze")),
+        "{sent:?}"
+    );
+
+    // What the fetcher refuses is reported.
+    client.handle_msg(&pm("friend", "/analyze 8 HGroup5"));
+    let sent = sent_until(&mut rx, "Failed to analyze");
+    assert!(sent.iter().any(|s| s.contains("no export 8")), "{sent:?}");
+}
+
+#[test]
+fn it_says_so_when_it_has_no_way_to_fetch_a_game() {
+    logger::set_level(LogLevel::Off);
+    init_variants();
+    let (tx, mut rx) = unbounded_channel();
+    let config = BotConfig {
+        export_fetcher: None,
+        ..BotConfig::default()
+    };
+    let mut client = BotClient::new(config, tx);
+    client.handle_msg(&welcome("bot"));
+
+    client.handle_msg(&pm("friend", "/analyze 7 HGroup5"));
+    let sent = sent_until(&mut rx, "Failed to analyze");
+    assert!(
+        sent.iter().any(|s| s.contains("no way to fetch games")),
+        "{sent:?}"
+    );
 }
 
 #[test]
