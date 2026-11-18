@@ -135,3 +135,25 @@ different moves even at 3 players, and are not comparable):
 A budget of a second or more costs nothing measurable here (the score is the same, and `HGroup5` plays the same moves); 250 ms is neutral; 50 ms starts to cost (-3%, -8%).
 At 3 players (`HGroup3`, 6 games) a budget of 1000 ms changes some moves (a few take longer than a second) and the score by one (139 to 138).
 The default is 5 s because it bounds a move on a slow machine and a debug build without changing the moves a desktop plays; an app that embeds the library has none unless it sets one.
+
+## Depth of the lookahead at 5 players (#16)
+
+At 5 or more players the lookahead stops after `budget::max_lookahead_5p()` plies (the default is 1: only the next player's move is modelled; `benchmark lookahead=<n>`,
+and `budget::set_max_lookahead_5p`). What does a different depth do to the score? Self-play at 5 players on identical deals (paired), solver off, no time budget, one process at a
+time, scores out of 25; the seeds are 314 (16 deals), 2000 (32) and 3000 (64). The first 16 deals suggested that 2 plies are better (+2.6 for `HGroup5`); 32 fresh deals did not
+(-0.2), so the pooled numbers are the ones to read:
+
+| | 0 plies | 1 ply (default) | 2 plies | 3 plies |
+|---|---|---|---|---|
+| `HGroup5`: mean score (se), games under 15, time per game | 22.80 (0.16), 1%, 4.5 s | 22.52 (0.32), 4%, 10.2 s | 22.77 (0.55), 4%, 27.2 s | |
+| `HGroup1` (32 deals) | 22.50 (0.40), 2.7 s | 22.00 (0.73), 7.6 s | | |
+| `HGroup11` (12 deals) | | 22.67 (1.05), 11.8 s | 22.33 (1.33), 34.2 s | |
+| `RefSieve` (48 deals) | 18.75 (0.51), 0.9 s | 19.00 (0.57), 2.8 s | 20.02 (0.56), 14.1 s | 20.50 (0.98, 8 deals), 79 s |
+
+Paired differences: `HGroup5` 1 ply minus 0: -0.29 (se 0.35, 112 deals); 2 minus 1: +0.73 (se 0.73, 48 deals). `RefSieve` 2 minus 0: +1.27 (se 0.76, t = 1.7), 2 minus 1: +1.0 (se 0.78).
+
+In H-Group the depth makes no measurable difference to the score, and the cost grows about 2.5 to 6 times with each ply (a game takes 4.5 s at 0 plies and 27 s at 2). The default of 1 ply is
+slower than 0 without a visible gain, and has more bad games (4% under 15 against 1%, which is not significant at this size). RefSieve may gain about a point from 2 plies, at 15 times the time of 1;
+its sample is small, and 3 plies cost 79 s a game. The setting is shared by H-Group and RefSieve: choosing different depths would need one each.
+
+The very slow moves of #113 and #115 come from this recursion, so 0 plies would also remove them at 5 players (with the speed-up and the time budget they are rare already).

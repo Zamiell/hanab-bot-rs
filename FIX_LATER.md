@@ -122,10 +122,11 @@ Places where the Scala looks unintended and the Rust copied the behaviour so par
     self-play time (mostly the per-player hypothetical plays).
 16. **resolved** `Convention::uses_refresh_after_play(&self, &Game)` is new (not in Scala): hypothetical plays only copy the game when it
     returns true. H-Group says so only when connections are waiting.
-29. **kept** H-Group at 5+ players: the full lookahead (`advance`/`force_clue_value` over every clue of every other player, ~36 options per ply)
-    does not finish its first decision in minutes, in Scala either. `advance` now stops after `MAX_LOOKAHEAD_5P = 1` plies (RefSieve too).
-    2-4 players are unchanged. Quality at 5p vs. a deeper lookahead is unmeasured (RefSieve 5p averages ~18.7 over 6 games, H-Group 5p
-    ~22.8). Candidates: prune the clue options instead of cutting depth.
+29. **kept (measured)** H-Group at 5+ players: the full lookahead (`advance`/`force_clue_value` over every clue of every other player, ~36 options per ply)
+    does not finish its first decision in minutes, in Scala either. `advance` stops after `budget::max_lookahead_5p()` plies (default 1; RefSieve too).
+    2-4 players are unchanged. Measured (PERFORMANCE.md, "Depth of the lookahead at 5 players"): in H-Group the depth makes no measurable difference to the
+    score (0, 1 and 2 plies: 22.8, 22.5, 22.8 on `HGroup5`), and 0 is 2.3 times faster than 1; RefSieve may gain about a point from 2 plies, at 15 times the time.
+    Still open: pruning the clue options instead of cutting depth.
 30. **resolved** `hypo_play` copied the game twice per hypothetical play even with nothing waiting (102 s -> 52 s for 2 games).
 31. **kept** `SELF_PLAY_SLOW_MS=<ms>` makes `self_play` print every decision that takes at least that long (to stderr).
 32. **resolved** See 17 (102 s -> 27 s in total for 2 games of HGroup5 self-play).

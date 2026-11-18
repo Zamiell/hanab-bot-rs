@@ -1,7 +1,7 @@
 //! Times self-play on a fixed set of seeded games.
 //!
 //! Usage: `benchmark [convention=HGroup3] [players=3] [variant="No Variant"] [seed=314] [games=3] [repetitions=3]
-//!         [solver=off] [move_timeout=0] [variants=<json> colours=<json>]`
+//!         [solver=off] [move_timeout=0] [lookahead=1] [variants=<json> colours=<json>]`
 //!
 //! Every repetition plays the same games, so the times are comparable between runs and between versions of the code.
 //! Two things make the numbers trustworthy:
@@ -54,6 +54,11 @@ fn main() -> Result<(), String> {
     logger::set_default_level(LogLevel::Off);
     solver::set_enabled(solver_on);
     // A time budget for each move, in milliseconds (0, the default, is none: the moves then do not depend on the machine).
+    // How many plies the lookahead goes at 5 or more players (the default is 1).
+    let lookahead: usize = get("lookahead", "1")
+        .parse()
+        .map_err(|_| "lookahead must be a number")?;
+    hanab_bot::budget::set_max_lookahead_5p(lookahead);
     let move_timeout: u64 = get("move_timeout", "0")
         .parse()
         .map_err(|_| "move_timeout must be a number")?;
@@ -88,10 +93,12 @@ fn main() -> Result<(), String> {
         let started = Instant::now();
         let (mut rep_fingerprint, mut rep_score, mut rep_moves, mut rep_errors) =
             (0xcbf2_9ce4_8422_2325_u64, 0, 0, 0);
+        let mut scores: Vec<usize> = Vec::new();
 
         for shuffled in &decks {
             let summary = simulate_game(&conv, &variant, players, shuffled);
             rep_score += summary.score;
+            scores.push(summary.score);
             rep_moves += summary.actions.len();
             rep_errors += usize::from(summary.error.is_some());
             fnv(
@@ -101,6 +108,7 @@ fn main() -> Result<(), String> {
         }
 
         let elapsed = started.elapsed();
+        println!("  scores: {scores:?}");
         println!(
             "  repetition {:2}: {:7.1} ms",
             repetition + 1,
