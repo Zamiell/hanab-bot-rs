@@ -133,10 +133,11 @@ Places where the Scala looks unintended and the Rust copied the behaviour so par
 33. **resolved** `update_hypo_stacks` computed `thinks_trash` every iteration only to filter for inverted suits; now skipped without inverted
     suits (22.3 s -> 9.8 s). `order_trash` is generally expensive; other hot callers of `thinks_trash` may benefit from caching.
 
-36. **open** The endgame solver often runs into its 3 s limit in self-play (65 decisions of 2.9 s or more in 6 HGroup3 games on a busy
-    machine), so endgames may be played from a partial search. `HANABI_ENDGAME_TIMEOUT_MS` (live bot) raises the limit
-    (`endgame::solver::set_default_timeout`). The real fix is a faster search: most of its time is in `Game::simulate_action`, i.e. the
-    clone/`elim`/`update_hypo_stacks` costs of section C.
+36. **measured, not needed** The endgame solver often runs into its 3 s limit in self-play, so endgames may be played from a partial search. Measured
+    (PERFORMANCE.md, "The endgame solver's time limit"): playing with the 3 s limit and with a limit long enough for every search to finish gives
+    the same score in 54 of 56 deals (the other two favour the 3 s limit), and the long limit costs up to 6.6 times the time. `HANABI_ENDGAME_TIMEOUT_MS`
+    and `HANABI_ENDGAME_THREADS` (live bot) change the limit and the threads; `benchmark solver_timeout=<ms>` sets it in self-play. A faster search would
+    be work on the clone/`elim`/`update_hypo_stacks` costs of section C, which are spread evenly and cannot be skipped inside the solver (see PERFORMANCE.md).
 
 37. **fixed** Endgame "mistake!" comments from `analyze` could be spurious for people. Two causes, both fixed: the solver worked from the mover's
     point of view with the bot's conventional inferences, so a person who deviated could hold a hand the model thinks impossible; and
