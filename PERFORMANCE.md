@@ -157,3 +157,28 @@ slower than 0 without a visible gain, and has more bad games (4% under 15 agains
 its sample is small, and 3 plies cost 79 s a game. The setting is shared by H-Group and RefSieve: choosing different depths would need one each.
 
 The very slow moves of #113 and #115 come from this recursion, so 0 plies would also remove them at 5 players (with the speed-up and the time budget they are rare already).
+
+## The endgame solver's time limit (#14)
+
+The solver searches for 3 s per move (`HANABI_ENDGAME_TIMEOUT_MS`; `benchmark solver_timeout=<ms>`) and plays from what it has found when time is up. In self-play with the solver on, a few decisions
+at the end of a game run into the limit: 5 decisions in 12 `HGroup3` games at 3 players, 3 in 8 `HGroup5` games at 4 players, 2 in 8 at 5 players. With a limit long enough for the search to finish, one of those
+decisions takes 10 to 37 s for 6,000 to 8,600 positions (seeds 319 and 320 of `HGroup3`), so 2 to 4 ms a position: a search that finishes inside 3 s would need positions 4 to 12 times cheaper.
+
+**It makes no measurable difference to the score.** Self-play with the 3 s limit against a limit that lets every search finish, on the same deals (paired):
+
+| | deals | different score | time at 3 s | time at the long limit |
+|---|---|---|---|---|
+| `HGroup3`, 3 players (limit 60 s) | 24 | 0 | 109 s, 96 s | 176 s, 254 s |
+| `Reactor1`, 3 players (60 s) | 16 | 1 (25 at 3 s, 24 long) | 56 s | 369 s |
+| `HGroup5`, 4 players (30 s) | 8 | 1 (25 at 3 s, 24 long) | 130 s | 189 s |
+| `HGroup11`, 3 players (30 s) | 8 | 0 | 85 s | 138 s |
+
+The 3 s limit is as good as a complete search here, and up to 6.6 times cheaper; the two games that differ are better with the limit. So there is nothing to gain from a faster search for the score, only for the time per move.
+
+Where a position's time goes (the long decision of seed 319, exclusive time per function, with timers): `update_hypo_stacks` 2.4 s (489,000 calls), `handle_action` 1.5 s, `interpret_clue` 1.4 s, `clone_for_hypo` 1.1 s,
+`thinks_playables` 1.0 s, `card_elim` 0.9 s, `elim` 0.8 s, `refresh_wcs` 1.0 s, of 11.9 s. There is no one hotspot. Each position makes about 4 `simulate_action` calls (every candidate action goes through the
+convention's whole machinery) and about 78 `update_hypo_stacks` calls. Skipping the hypothetical stacks inside the solver's simulations would not be exact: the clue and discard interpretations read
+`hypo_plays` and `hypo_stacks` (`interpret_clue`, `special_clues`, `interpret_dc`), and the solver uses them to decide which clues are valid. A cache like the one for `cross_elim` would need a key that
+covers every view of the game. More threads (`HANABI_ENDGAME_THREADS`) make a search finish in time more often, with the same answer.
+
+Also seen in that scan, without the solver: a few decisions at turn 2 of 4-player `HGroup5` games take 3 to 4 s.

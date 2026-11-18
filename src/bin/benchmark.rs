@@ -1,7 +1,7 @@
 //! Times self-play on a fixed set of seeded games.
 //!
 //! Usage: `benchmark [convention=HGroup3] [players=3] [variant="No Variant"] [seed=314] [games=3] [repetitions=3]
-//!         [solver=off] [move_timeout=0] [lookahead=1] [variants=<json> colours=<json>]`
+//!         [solver=off] [solver_timeout=3000] [move_timeout=0] [lookahead=1] [variants=<json> colours=<json>]`
 //!
 //! Every repetition plays the same games, so the times are comparable between runs and between versions of the code.
 //! Two things make the numbers trustworthy:
@@ -54,6 +54,12 @@ fn main() -> Result<(), String> {
     logger::set_default_level(LogLevel::Off);
     solver::set_enabled(solver_on);
     // A time budget for each move, in milliseconds (0, the default, is none: the moves then do not depend on the machine).
+    // How long the endgame solver may search per move, in milliseconds. With a limit long enough for every search to finish, the moves
+    // do not depend on the machine, and the time of the run is the cost of the searches.
+    let solver_timeout: u64 = get("solver_timeout", "3000")
+        .parse()
+        .map_err(|_| "solver_timeout must be a number")?;
+    solver::set_default_timeout(Duration::from_millis(solver_timeout));
     // How many plies the lookahead goes at 5 or more players (the default is 1).
     let lookahead: usize = get("lookahead", "1")
         .parse()
