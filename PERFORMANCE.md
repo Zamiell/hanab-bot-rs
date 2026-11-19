@@ -182,3 +182,24 @@ convention's whole machinery) and about 78 `update_hypo_stacks` calls. Skipping 
 covers every view of the game. More threads (`HANABI_ENDGAME_THREADS`) make a search finish in time more often, with the same answer.
 
 Also seen in that scan, without the solver: a few decisions at turn 2 of 4-player `HGroup5` games take 3 to 4 s.
+
+## The lookahead at 4 players (#131)
+
+At 4 players some early decisions of `HGroup5` take 3 to 4 s with the solver off (seeds 315, 316 and 321 at turn 2, seed 319 at turn 8: 4 of 8 games). The lookahead is capped at 5 or more players
+(`budget::max_lookahead_5p`) but not at 4. The slow one, seed 316 turn 2, makes 3,799 simulated games for 17 candidate actions (about 220 each), and its time is in `update_hypo_stacks` and the waiting connections of the
+hypothetical plays: the same kind of cost as at 5 players, with the most clue options in the early game.
+
+`budget::set_max_lookahead_4p` (`benchmark lookahead4=<n>`; the default is no limit, so nothing changes) caps it at 4 players too. Self-play at 4 players on identical deals (paired), solver off, one process at a
+time; seeds 2000 and 3000. A cap of 2 plies removes every slow decision (none of the 8 seeds above has one), and costs:
+
+| 4 players | no cap | cap 2 | cap 1 |
+|---|---|---|---|
+| `HGroup5`, 64 deals (cap 1: 32): mean score (se), time per game | 24.38 (0.13), 18.9 s | 24.12 (0.12), 7.8 s | 23.91 (0.18), 3.5 s |
+| `RefSieve`, 24 deals | 22.75 (0.23), 22.0 s | 22.58 (0.25), 5.0 s | |
+| `HGroup1`, 24 deals | 24.25 (0.18), 12.9 s | 23.17 (0.77), 4.8 s (one game of 6) | |
+
+Paired differences against no cap: `HGroup5` cap 2 -0.25 (se 0.19, 64 deals), cap 1 -0.34 (se 0.29, 32 deals); `RefSieve` cap 2 -0.17 (se 0.30); `HGroup1` cap 2 -1.08 (se 0.73, one bad game).
+
+So a cap of 2 makes a game 2.4 to 4.4 times faster and removes the slow decisions, at a possible cost of about a quarter of a point (not significant on its own; the first 32 deals showed none, the next 32 about half a point).
+It is a trade, not a free speed-up like the one for `cross_elim` (#127), so the default stays: with the move budget (a move over 5 s is cut) and the 2 s the bot waits before every move anyway, the slow
+early decisions cost a second or two of latency, and the bot would play slightly weaker for it. An app on a slow machine, where they cost more, can choose the cap.

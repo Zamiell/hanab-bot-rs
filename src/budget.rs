@@ -18,6 +18,9 @@ static DEFAULT_MS: AtomicU64 = AtomicU64::new(0);
 /// How many plies the lookahead goes in games with more than 4 players (the full one never finishes there).
 static MAX_LOOKAHEAD_5P: AtomicUsize = AtomicUsize::new(1);
 
+/// How many plies the lookahead goes in games with 4 players (no limit by default).
+static MAX_LOOKAHEAD_4P: AtomicUsize = AtomicUsize::new(usize::MAX);
+
 /// Changes how many plies the lookahead of a move goes in games with 5 or more players (process-wide; the default is 1).
 pub fn set_max_lookahead_5p(plies: usize) {
     MAX_LOOKAHEAD_5P.store(plies, Ordering::Relaxed);
@@ -26,6 +29,20 @@ pub fn set_max_lookahead_5p(plies: usize) {
 /// How many plies the lookahead goes in games with 5 or more players.
 pub fn max_lookahead_5p() -> usize {
     MAX_LOOKAHEAD_5P.load(Ordering::Relaxed)
+}
+
+/// Changes how many plies the lookahead of a move goes in games with 4 players (process-wide; the default is no limit).
+pub fn set_max_lookahead_4p(plies: usize) {
+    MAX_LOOKAHEAD_4P.store(plies, Ordering::Relaxed);
+}
+
+/// Whether the lookahead stops at this many plies from us, in a game with this many players.
+pub fn lookahead_stops(num_players: usize, offset: usize) -> bool {
+    match num_players {
+        0..=3 => false,
+        4 => offset > MAX_LOOKAHEAD_4P.load(Ordering::Relaxed),
+        _ => offset > max_lookahead_5p(),
+    }
 }
 
 thread_local! {
@@ -92,6 +109,17 @@ pub fn expired() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_lookahead_is_capped_at_5_players_and_not_below() {
+        // (The defaults: no limit up to 4 players, one ply at 5 or more.)
+        assert!(!lookahead_stops(2, 99));
+        assert!(!lookahead_stops(3, 99));
+        assert!(!lookahead_stops(4, 99));
+        assert!(!lookahead_stops(5, 1));
+        assert!(lookahead_stops(5, 2));
+        assert!(lookahead_stops(6, 2));
+    }
 
     #[test]
     fn there_is_no_deadline_without_a_budget() {
